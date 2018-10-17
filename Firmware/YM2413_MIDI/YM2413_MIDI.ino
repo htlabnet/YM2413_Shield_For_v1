@@ -1,5 +1,61 @@
-#include <MIDI.h>
+//
+// #################################################
+//
+//    HTLAB.NET YM2413 Shield
+//      http://htlab.net/electronics/
+//
+//    Copyright (C) 2018
+//      Hideto Kikuchi / PJ (@pcjpnet) - http://pc-jp.net/
+//
+// #################################################
+//
+
+//
+// ########## Compatible Boards ##########
+//    - Arduino Uno Rev3 (USB-MIDI is available using MOCO)
+//    - Arduino Leonardo (USB-MIDI is available)
+//
+
+//
+// ########## Require Libraries ##########
+//    - MIDI Library 4.3
+//
+//
+
+//
+// ########## Optional Libraries ##########
+//    - MIDIUSB Library 1.0.3 (for Arduino Leonardo)
+//
+//
+
+// ########## Settings ##########
+// Use MIDIUSB Library
+//#define USE_MIDIUSB
+//
+// ########## Complete ##########
+
 #include <math.h>
+
+// Use MIDI Library
+#include <MIDI.h>
+#if (MIDI_LIBRARY_VERSION_MAJOR < 4) || \
+  ((MIDI_LIBRARY_VERSION_MAJOR == 4) && (MIDI_LIBRARY_VERSION_MINOR < 3))
+  #error This version of MIDI library is not supported. Please use version 4.3 or later.
+#endif
+
+
+// Use MIDIUSB Library (for Arduino Leonardo, Micro)
+#if defined(USE_MIDIUSB) && defined(USBCON) && \
+    (defined(ARDUINO_AVR_LEONARDO) || defined(ARDUINO_AVR_MICRO))
+  #include <midi_UsbTransport.h>
+  static const unsigned sUsbTransportBufferSize = 16;
+  typedef midi::UsbTransport<sUsbTransportBufferSize> UsbTransport;
+  UsbTransport sUsbTransport;
+  MIDI_CREATE_INSTANCE(UsbTransport, sUsbTransport, MIDI);
+#else
+  MIDI_CREATE_DEFAULT_INSTANCE();
+#endif
+
 
 // Pin Define
 const byte pin_bus[] = { 2, 3, 4, 5, 6, 7, 8, 9 };
@@ -8,9 +64,11 @@ const byte pin_WE = 11;
 const byte pin_A0 = 10;
 const byte pin_IC = 13;
 
+
 // F-Number table
 const int fnum[12] = { 172, 181, 192, 204, 216, 229, 242, 257, 272, 288, 305, 323 };
 const byte muteNum = 255;
+
 
 class YM2413 {
   public:
@@ -243,14 +301,18 @@ class YM2413 {
 YM2413 g_ym;
 byte pc_map[16];
 
+
 void setup() {
   // YM2413 initialize
   g_ym.begin();
   g_ym.drum_mode(true);
   
   // MIDI Lib
-  MIDI.begin();
-  MIDI.setInputChannel(MIDI_CHANNEL_OMNI);
+  MIDI.setHandleNoteOn(isr_midi_noteon);
+  MIDI.setHandleNoteOff(isr_midi_noteoff);
+  MIDI.setHandleProgramChange(isr_midi_programchange);
+  MIDI.setHandleControlChange(isr_midi_controlchange);
+  MIDI.begin(MIDI_CHANNEL_OMNI);
   
   // Program Change <-> Channel Tone Map
   for(byte i = 0; i < 16; i++) {
@@ -258,209 +320,217 @@ void setup() {
   }
 }
 
+
+// Main Loop
 void loop() {
-  if (MIDI.read()) {
-    switch(MIDI.getType()) {
-      case NoteOn:
-        if (MIDI.getChannel() != 10) {
-	  g_ym.rom_note_on(pc_map[MIDI.getChannel()], MIDI.getData2(), MIDI.getData1());
-        } else {
-          switch (MIDI.getData1()) {
-            case 35:
-            case 36:
-              //BD
-              g_ym.drum_note_on(4, MIDI.getData2());
-              break;
-            
-            case 38:
-            case 40:
-              //SD
-              g_ym.drum_note_on(3, MIDI.getData2());
-              break;
-            
-            case 41:
-            case 43:
-            case 45:
-            case 47:
-            case 48:
-            case 50:
-              //TOM
-              g_ym.drum_note_on(2, MIDI.getData2());
-              break;
-            
-            case 42:
-            case 44:
-            case 46:
-              //HH
-              g_ym.drum_note_on(0, MIDI.getData2());
-              break;
-            
-            case 49:
-            case 51:
-              //TCY
-              g_ym.drum_note_on(1, MIDI.getData2());
-              break;
-          }
-        }
+
+  // MIDI Tasks
+  MIDI.read();
+
+}
+
+
+// Interrupt MIDI NoteON Tasks
+void isr_midi_noteon(byte ch, byte num, byte vel) {
+  if (ch != 10) {
+    g_ym.rom_note_on(pc_map[ch], vel, num);
+  } else {
+    switch (num) {
+      case 35:
+      case 36:
+        //BD
+        g_ym.drum_note_on(4, vel);
         break;
-      
-      case NoteOff:
-        if (MIDI.getChannel() != 10) {
-          g_ym.rom_note_off(MIDI.getData1());
-        } else {
-          switch (MIDI.getData1()) {
-            case 35:
-            case 36:
-              //BD
-              g_ym.drum_note_off(4);
-              break;
-            
-            case 38:
-            case 40:
-              //SD
-              g_ym.drum_note_off(3);
-              break;
-            
-            case 41:
-            case 43:
-            case 45:
-            case 47:
-            case 48:
-            case 50:
-              //TOM
-              g_ym.drum_note_off(2);
-              break;
-            
-            case 42:
-            case 44:
-            case 46:
-              //HH
-              g_ym.drum_note_off(0);
-              break;
-            
-            case 49:
-            case 51:
-              //TCY
-              g_ym.drum_note_off(1);
-              break;
-          }
-        }
+
+      case 38:
+      case 40:
+        //SD
+        g_ym.drum_note_on(3, vel);
         break;
-      
-      case ProgramChange:
-        switch (MIDI.getData1()) {
-          case 0:  //00	Acoustic Piano
-          case 1:  //01	Bright Piano
-          case 2:  //02	Electric Grand Piano
-          case 3:  //03	Honky-tonk Piano
-          case 4:  //04	Electric Piano
-          case 5:  //05	Electric Piano 2
-            //Piano
-            pc_map[MIDI.getChannel()] = 3;
-            break;
-          
-          case 6:  //06	Harpsichord
-          case 7:  //07 Clavi
-            //Harpsichord
-            pc_map[MIDI.getChannel()] = 11;
-            break;
-          
-          case 8:  //08 Celesta
-          case 9:  //09 Glockenspiel
-          case 10:  //0A Musical Box
-          case 11:  //0B Vibraphone
-            //Vibraphone
-            pc_map[MIDI.getChannel()] = 12;
-            break;
-          
-          case 16:  //10 Drawbar Organ
-          case 17:  //11 Percussive Organ
-          case 18:  //12 Rock Organ
-          case 19:  //13 Church Organ
-          case 20:  //14 Reed Organ
-            //Organ
-            pc_map[MIDI.getChannel()] = 8;
-            break;
-          
-          case 24:  //18 Acoustic Guitar (nylon)
-          case 25:  //19 Acoustic Guitar (steel)
-            //Guitar
-            pc_map[MIDI.getChannel()] = 2;
-            break;
-          
-          case 26:  //1A Electric Guitar (jazz)
-          case 27:  //1B Electric Guitar (clean)
-          case 28:  //1C Electric Guitar (muted)
-          case 29:  //1D Overdriven Guitar
-          case 30:  //1E Distortion Guitar
-          case 31:  //1F Guitar harmonics
-            //Electric Guitar
-            pc_map[MIDI.getChannel()] = 15;
-            break;
-          
-          case 32:  //20 Acoustic Bass
-          case 33:  //21 Electric Bass (finger)
-          case 34:  //22 Electric Bass (pick)
-          case 35:  //23 Fretless Bass
-            //Bass
-            pc_map[MIDI.getChannel()] = 14;
-            break;
-          
-          case 38:  //26 Synth Bass 1
-          case 39:  //27 Synth Bass 2
-            //Synth Bass
-            pc_map[MIDI.getChannel()] = 13;
-            break;
-          
-          case 40:  //28 Violin
-            //Violin
-            pc_map[MIDI.getChannel()] = 1;
-            break;
-          
-          case 56:  //38 Trumpet
-          case 59:  //3B Muted Trumpet
-            //Trumpet
-            pc_map[MIDI.getChannel()] = 7;
-            break;
-          
-          case 60:  //3C French Horn
-            //French Horn
-            pc_map[MIDI.getChannel()] = 9;
-            break;
-          
-          case 68:  //44 Oboe
-            //Oboe
-            pc_map[MIDI.getChannel()] = 6;
-            break;
-          
-          case 71:  //47 Clarinet
-            //Clarinet
-            pc_map[MIDI.getChannel()] = 5;
-            break;
-          
-          case 73:  //49 Flute
-            //Flute
-            pc_map[MIDI.getChannel()] = 4;
-            break;
-          
-          default:
-            //Synth (Default)
-            pc_map[MIDI.getChannel()] = 10;
-            break;
-        }
+
+      case 41:
+      case 43:
+      case 45:
+      case 47:
+      case 48:
+      case 50:
+        //TOM
+        g_ym.drum_note_on(2, vel);
         break;
-      
-      case ControlChange:
-        switch (MIDI.getData1()) {
-          case 120:  //All Sound Off
-          case 123:  //All Notes Off
-            g_ym.sound_off();
-          break;
-        }
+
+      case 42:
+      case 44:
+      case 46:
+        //HH
+        g_ym.drum_note_on(0, vel);
         break;
-      
-      default:
+
+      case 49:
+      case 51:
+        //TCY
+        g_ym.drum_note_on(1, vel);
         break;
     }
+  }
+}
+
+
+// Interrupt MIDI NoteOFF Tasks
+void isr_midi_noteoff(byte ch, byte num, byte vel) {
+  if (ch != 10) {
+    g_ym.rom_note_off(num);
+  } else {
+    switch (num) {
+      case 35:
+      case 36:
+        //BD
+        g_ym.drum_note_off(4);
+        break;
+
+      case 38:
+      case 40:
+        //SD
+        g_ym.drum_note_off(3);
+        break;
+
+      case 41:
+      case 43:
+      case 45:
+      case 47:
+      case 48:
+      case 50:
+        //TOM
+        g_ym.drum_note_off(2);
+        break;
+
+      case 42:
+      case 44:
+      case 46:
+        //HH
+        g_ym.drum_note_off(0);
+        break;
+
+      case 49:
+      case 51:
+        //TCY
+        g_ym.drum_note_off(1);
+        break;
+    }
+  }
+}
+
+
+// Interrupt MIDI ProgramChange Tasks
+void isr_midi_programchange(byte ch, byte num) {
+  switch (num) {
+    case 0:  //00  Acoustic Piano
+    case 1:  //01 Bright Piano
+    case 2:  //02 Electric Grand Piano
+    case 3:  //03 Honky-tonk Piano
+    case 4:  //04 Electric Piano
+    case 5:  //05 Electric Piano 2
+      //Piano
+      pc_map[ch] = 3;
+      break;
+
+    case 6:  //06 Harpsichord
+    case 7:  //07 Clavi
+      //Harpsichord
+      pc_map[MIDI.getChannel()] = 11;
+      break;
+
+    case 8:  //08 Celesta
+    case 9:  //09 Glockenspiel
+    case 10:  //0A Musical Box
+    case 11:  //0B Vibraphone
+      //Vibraphone
+      pc_map[MIDI.getChannel()] = 12;
+      break;
+
+    case 16:  //10 Drawbar Organ
+    case 17:  //11 Percussive Organ
+    case 18:  //12 Rock Organ
+    case 19:  //13 Church Organ
+    case 20:  //14 Reed Organ
+      //Organ
+      pc_map[MIDI.getChannel()] = 8;
+      break;
+
+    case 24:  //18 Acoustic Guitar (nylon)
+    case 25:  //19 Acoustic Guitar (steel)
+      //Guitar
+      pc_map[MIDI.getChannel()] = 2;
+      break;
+
+    case 26:  //1A Electric Guitar (jazz)
+    case 27:  //1B Electric Guitar (clean)
+    case 28:  //1C Electric Guitar (muted)
+    case 29:  //1D Overdriven Guitar
+    case 30:  //1E Distortion Guitar
+    case 31:  //1F Guitar harmonics
+      //Electric Guitar
+      pc_map[MIDI.getChannel()] = 15;
+      break;
+
+    case 32:  //20 Acoustic Bass
+    case 33:  //21 Electric Bass (finger)
+    case 34:  //22 Electric Bass (pick)
+    case 35:  //23 Fretless Bass
+      //Bass
+      pc_map[MIDI.getChannel()] = 14;
+      break;
+
+    case 38:  //26 Synth Bass 1
+    case 39:  //27 Synth Bass 2
+      //Synth Bass
+      pc_map[MIDI.getChannel()] = 13;
+      break;
+
+    case 40:  //28 Violin
+      //Violin
+      pc_map[MIDI.getChannel()] = 1;
+      break;
+
+    case 56:  //38 Trumpet
+    case 59:  //3B Muted Trumpet
+      //Trumpet
+      pc_map[MIDI.getChannel()] = 7;
+      break;
+
+    case 60:  //3C French Horn
+      //French Horn
+      pc_map[MIDI.getChannel()] = 9;
+      break;
+
+    case 68:  //44 Oboe
+      //Oboe
+      pc_map[MIDI.getChannel()] = 6;
+      break;
+
+    case 71:  //47 Clarinet
+      //Clarinet
+      pc_map[MIDI.getChannel()] = 5;
+      break;
+
+    case 73:  //49 Flute
+      //Flute
+      pc_map[MIDI.getChannel()] = 4;
+      break;
+
+    default:
+      //Synth (Default)
+      pc_map[MIDI.getChannel()] = 10;
+      break;
+  }
+}
+
+
+// Interrupt MIDI ControlChange Tasks
+void isr_midi_controlchange(byte ch, byte num, byte val) {
+  switch(num) {
+    case 120: // CC#120 All Sound Off
+    case 123: // CC#123 All Notes Off
+      g_ym.sound_off();
+      break;
   }
 }

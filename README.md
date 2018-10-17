@@ -15,5 +15,5 @@ MIDI制御のサンプル
 以下のものが必要
 
  - Midi Firmware for Arduino Uno (Moco)
- - MIDI Library v3.2
+ - MIDI Library v4.3
 
