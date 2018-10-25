@@ -436,7 +436,7 @@ void isr_midi_programchange(byte ch, byte num) {
     case 6:  //06 Harpsichord
     case 7:  //07 Clavi
       //Harpsichord
-      pc_map[MIDI.getChannel()] = 11;
+      pc_map[ch] = 11;
       break;
 
     case 8:  //08 Celesta
@@ -444,7 +444,7 @@ void isr_midi_programchange(byte ch, byte num) {
     case 10:  //0A Musical Box
     case 11:  //0B Vibraphone
       //Vibraphone
-      pc_map[MIDI.getChannel()] = 12;
+      pc_map[ch] = 12;
       break;
 
     case 16:  //10 Drawbar Organ
@@ -453,13 +453,13 @@ void isr_midi_programchange(byte ch, byte num) {
     case 19:  //13 Church Organ
     case 20:  //14 Reed Organ
       //Organ
-      pc_map[MIDI.getChannel()] = 8;
+      pc_map[ch] = 8;
       break;
 
     case 24:  //18 Acoustic Guitar (nylon)
     case 25:  //19 Acoustic Guitar (steel)
       //Guitar
-      pc_map[MIDI.getChannel()] = 2;
+      pc_map[ch] = 2;
       break;
 
     case 26:  //1A Electric Guitar (jazz)
@@ -469,7 +469,7 @@ void isr_midi_programchange(byte ch, byte num) {
     case 30:  //1E Distortion Guitar
     case 31:  //1F Guitar harmonics
       //Electric Guitar
-      pc_map[MIDI.getChannel()] = 15;
+      pc_map[ch] = 15;
       break;
 
     case 32:  //20 Acoustic Bass
@@ -477,49 +477,49 @@ void isr_midi_programchange(byte ch, byte num) {
     case 34:  //22 Electric Bass (pick)
     case 35:  //23 Fretless Bass
       //Bass
-      pc_map[MIDI.getChannel()] = 14;
+      pc_map[ch] = 14;
       break;
 
     case 38:  //26 Synth Bass 1
     case 39:  //27 Synth Bass 2
       //Synth Bass
-      pc_map[MIDI.getChannel()] = 13;
+      pc_map[ch] = 13;
       break;
 
     case 40:  //28 Violin
       //Violin
-      pc_map[MIDI.getChannel()] = 1;
+      pc_map[ch] = 1;
       break;
 
     case 56:  //38 Trumpet
     case 59:  //3B Muted Trumpet
       //Trumpet
-      pc_map[MIDI.getChannel()] = 7;
+      pc_map[ch] = 7;
       break;
 
     case 60:  //3C French Horn
       //French Horn
-      pc_map[MIDI.getChannel()] = 9;
+      pc_map[ch] = 9;
       break;
 
     case 68:  //44 Oboe
       //Oboe
-      pc_map[MIDI.getChannel()] = 6;
+      pc_map[ch] = 6;
       break;
 
     case 71:  //47 Clarinet
       //Clarinet
-      pc_map[MIDI.getChannel()] = 5;
+      pc_map[ch] = 5;
       break;
 
     case 73:  //49 Flute
       //Flute
-      pc_map[MIDI.getChannel()] = 4;
+      pc_map[ch] = 4;
       break;
 
     default:
       //Synth (Default)
-      pc_map[MIDI.getChannel()] = 10;
+      pc_map[ch] = 10;
       break;
   }
 }
